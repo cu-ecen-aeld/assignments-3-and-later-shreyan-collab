@@ -14,10 +14,10 @@ then
 	exit 1
 fi
 
-directory="$1"			#Checking if the directory is valid
+directory=$1			#Checking if the directory is valid
 if [ ! -d "$directory" ]
 then 
-	echo It is not a directory
+	echo "It is not a directory"
 	exit 1
 fi
 
@@ -25,4 +25,4 @@ word=$2
 cd $directory
 totallines=$(grep -r $word . | wc -l)	#Checking the entire directory
 totalfiles=$(find -type f | wc -l)    #Using pipe to count files
-echo The number of files are $totalfiles and the number of matching lines are $totallines
+echo "The number of files are $totalfiles and the number of matching lines are $totallines"

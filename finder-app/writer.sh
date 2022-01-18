@@ -17,13 +17,14 @@ fi
 fullpath="$1"
 directory="$(dirname "${fullpath}")"	#Extracting directory from path
 filename="$(basename "${fullpath}")"	#Extracting filename from path
-mkdir -p $directory && touch $fullpath
-cd $directory
-if [ ! -d "$directory" ]
+if [ ! -d "$directory" ]		#checking is directory is present
 then 
-	echo It is not a directory	#Checking if the directory is valid
-	exit 1
+	mkdir -p $directory		
+
 fi
+
+touch $fullpath
+cd $directory
 if [ ! -f "$fullpath" ]
 then
 	echo "File did not exist"	#Checking if the file is created
