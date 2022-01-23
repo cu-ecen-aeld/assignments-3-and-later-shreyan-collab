@@ -1,50 +1,59 @@
 
 #include <stdio.h>
-#include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-char * errorMessage = "ERROR: Invalid Number of arguments\nTotal number of arguments must be 2.\nThe order of arguments should be\n1.File path \n2.String to be written to the path";
+#include <syslog.h>
 
-
+char *errorMessageArgument = "ERROR: Invalid Number of arguments\nTotal number of arguments must be 2.\nThe order of arguments should be\n1.File path \n2.String to be written to the path\n";
 
 int main(int argc, char *argv[])
 {
-	char *fullpath = argv[1];
-	char *inputstring = argv[2];
-	ssize_t statusfilewrite;
+	openlog("Writer-Logging messages",0,LOG_USER); /*Opens connection to the system logger */
+	char *fullpath = argv[1]; /*Parsing path from command line argument*/
+	char *inputstring = argv[2]; /*Parsing input string from command line argument*/
+	int status; /*To store the status for file functions*/
 	if(argc != 3)
 	{
+		printf("%s",errorMessageArgument);
+		syslog(LOG_ERR,"ERROR:Invalid No of Arguments: %d\n",argc);
 		return 1;
-		//printf("Error message"); USE SYSLOG
 	}
-	int statuscreate = creat (fullpath, 0644);
-	//int fd = open(fullpath, O_RDWR | O_CREAT, S_IRUSR | S_IRGRP 		| S_IROTH);
-	if (statuscreate == -1)
+	status = creat (fullpath, 0644);
+	if (status == -1)
 	{
-		//Error in file creating
+		printf("ERROR: Cannot create the file in the path:%s\n",fullpath);
+		syslog(LOG_ERR,"ERROR: Cannot create the file in the path:%s\n",fullpath);
 	}
-	int statusfileopen = open (fullpath, O_WRONLY);
-	if(statusfileopen == -1)
+	else
 	{
-		//TO DO : Error in file creating
+		printf("LOG: File is created in the path:%s\n",fullpath);
+		syslog(LOG_DEBUG,"LOG: File is created in the path: %s\n",fullpath);
 	}
-	statusfilewrite = write (statusfileopen, inputstring, 	                  strlen(inputstring));
-	if(statusfilewrite == -1)
+	
+	status = open (fullpath, O_WRONLY);/*Using write only flag*/
+	if(status == -1)
 	{
-		// TO DO: Error in file writing
+		printf("ERROR: Cannot open the file located at:  %s\n",fullpath);
+		syslog(LOG_ERR,"ERROR: Cannot open the file located at:  %s\n",fullpath);
 	}
-	/*if(fputs(inputstring,stream) == EOF )
-	{
-		// ERROR HANDLING
-	}*/
-	close(statusfileopen);
-	/*
-	if(close(stream) == EOF)
-	{
-		// ERROR HANDLING
+	else
+	{	printf("LOG: Opened the file located at: %s\n",fullpath);
+		syslog(LOG_DEBUG,"LOG: Opened the file located at: %s\n",fullpath);
 	}
-	*/
+	status = write (status, inputstring,strlen(inputstring)); 	     		if(status == -1)
+	{
+		printf("ERROR: Cannot write %s to the file located at:%s\n",inputstring,fullpath);
+		syslog(LOG_ERR,"ERROR: Cannot write %s to the file located at:%s\n",inputstring,fullpath);
+	}
+	else
+	{
+		printf("LOG: Written %s to the file located at: %s\n",inputstring,fullpath);
+		syslog(LOG_DEBUG,"LOG: Written %s to the file located at:%s\n",inputstring,fullpath);
+	
+	}
+	close(status);
+	return 0;
 	
 }
 
