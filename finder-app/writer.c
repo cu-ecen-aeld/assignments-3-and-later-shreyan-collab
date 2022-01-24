@@ -10,18 +10,17 @@
 #include <unistd.h>
 #include <string.h>
 #include <syslog.h>
+#include <stdlib.h>
 
 #define TOTAL_ARGUMENTS 3
 #define STATUS_ERROR   -1
-#define SUCCESS 	 0
-#define FAILURE         1
 #define PERMISSION      0644 /*Giving user read, write permission, group - read and others read permission only*/
 
 char *errorMessageArgument = "ERROR: Invalid Number of arguments\nTotal number of arguments must be 2.\nThe order of arguments should be\n1.File path \n2.String to be written to the path\n";
 
 int main(int argc, char *argv[])
 {
-	openlog("Writer-Logging messages",0,LOG_USER); /*Opens connection to the system logger */
+
 	char *fullpath = argv[1]; /*Parsing path from command line argument*/
 	char *inputstring = argv[2]; /*Parsing input string from command line argument*/
 	int fd; /*File descriptor To store status for file functions*/
@@ -29,8 +28,9 @@ int main(int argc, char *argv[])
 	{
 		printf("%s",errorMessageArgument);
 		syslog(LOG_ERR,"ERROR:Invalid No of Arguments: %d\n",argc);
-		return FAILURE;
+		exit(1);
 	}
+	openlog("Writer-Logging messages",0,LOG_USER); /*Opens connection to the system logger */
 	if (access(fullpath,F_OK) == STATUS_ERROR) /*Checking whether file exists*/
 	{
 		syslog(LOG_DEBUG,"DEBUG:File is not present, creating a file now\n"); 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 		printf("ERROR: Cannot create the file in the path:%s\n",fullpath);
 		syslog(LOG_ERR,"ERROR: Cannot create the file in the path:%s\n",fullpath);
 		close(fd);
-		return FAILURE;
+		exit(1);
 		
 	}
 	else
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 		printf("ERROR: Cannot open the file located at:  %s\n",fullpath);
 		syslog(LOG_ERR,"ERROR: Cannot open the file located at:  %s\n",fullpath);
 		close(fd);
-		return FAILURE;
+		exit(1);
 	}
 	else
 	{	printf("DEBUG: Opened the file located at: %s\n",fullpath);
@@ -67,14 +67,14 @@ int main(int argc, char *argv[])
 		printf("ERROR: Cannot write %s to the file located at:%s\n",inputstring,fullpath);
 		syslog(LOG_ERR,"ERROR: Cannot write %s to the file located at:%s\n",inputstring,fullpath);
 		close(fd);
-		return FAILURE;
+		exit(1);
 	}
 	else if ( fd != strlen(inputstring))
 	{
 		printf("ERROR: The string %s is partially written to the file located at %s\n",inputstring,fullpath);
 		syslog(LOG_ERR,"ERROR: The string %s is partially written to the file located at %s\n",inputstring,fullpath);
 		close(fd);
-		return FAILURE;
+		exit(1);
 	}
 	else
 	{
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 	
 	}
 	close(fd);
-	return SUCCESS;
+	exit(0);
 	
 }
 
