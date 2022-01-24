@@ -1,6 +1,6 @@
 #!/bin/bash
 # @File name :finder.sh
-# @brief     :Writer script to create a file in specific directory and the 
+# @brief     :Writer script to create a file in specific directory and search a word in the file 
 # @author    :Shreyan Prabhu 01/14/2022
 # @References: 1) https://ryanstutorials.net/bash-scripting-tutorial/bash-variables.php 
 #	       2) https://ryanstutorials.net/bash-scripting-tutorial/bash-if-statements.php
