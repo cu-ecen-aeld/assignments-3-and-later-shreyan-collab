@@ -1,5 +1,10 @@
 #include "systemcalls.h"
-
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the commands in ... with arguments @param arguments were executed 
@@ -16,8 +21,16 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success 
  *   or false() if it returned a failure
 */
-
-    return true;
+    int status = 0;
+    status = system(cmd);
+    if ( status == -1)
+    {
+    	return false;
+    }
+    else
+    {
+    	return true;
+    }
 }
 
 /**
@@ -58,7 +71,36 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *   
 */
-
+    pid_t pid;
+    pid = fork();
+    if (pid == -1)
+    {
+    	return false;
+    }
+    else if (!pid)
+    {
+    	int execv_status = 0;
+    	execv_status = execv(command[0], command);
+    	if(execv_status == -1)
+    	{
+    		exit(-1);
+    	}
+      	
+    }
+    else if (pid > 0)
+    {
+    	int wait_status = 0;
+    	int pid_1 = waitpid (pid, &wait_status, 0); // check waitpid
+    	if(pid_1 == -1)
+    	{
+    		return false;
+    	}
+    	if (WIFEXITED (wait_status) == 0 || WEXITSTATUS (wait_status))
+    	{
+    		return false;
+    	}
+    
+    } 
     va_end(args);
 
     return true;
@@ -92,8 +134,49 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *   
 */
-
-    va_end(args);
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0) 
+    { 
+    	printf("Cannot open the file");
+    }
+    pid_t pid;
+    pid = fork();
+    if (pid == -1)
+    {
+    	return false;
+    }
+    else if (!pid)
+    {
+    	if (dup2(fd, 1) < 0) 
+    	{ 
+    		return false;
+    	}
+   	close(fd);
+    	int execv_status = 0;
+    	execv_status = execv(command[0], command);
+    	if(execv_status == -1)
+    	{
+    		exit(-1);
+    	}
+      	
+    }
+    else if (pid > 0)
+    {
+    	int wait_status = 0;
+    	int pid_1 = waitpid (pid, &wait_status, 0);
+    	if(pid_1 == -1)
+    	{
+    		return false;
+    	}
+    	if (WIFEXITED (wait_status) == 0 || WEXITSTATUS (wait_status))
+    	{
+    		return false;
+    	}
     
+    } 
+    va_end(args);
+
     return true;
+
+
 }
