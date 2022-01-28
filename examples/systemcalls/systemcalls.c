@@ -26,6 +26,7 @@ bool do_system(const char *cmd)
     if ( status == ERROR_STATUS)
     {
   	syslog(LOG_ERR,"ERROR: System Call failed");
+  	printf("ERROR: System Call failed\n");
   	closelog();
     	return false;
     }
@@ -71,6 +72,7 @@ bool do_exec(int count, ...)
     if (pid == ERROR_STATUS)
     {
     	syslog(LOG_ERR,"ERROR: Executing fork command");
+    	printf("ERROR: Executing fork command\n");
     	return false;
     }
     else if (pid == SUCCESS_STATUS) /*In child, fork() successfull return 0*/
@@ -81,6 +83,7 @@ bool do_exec(int count, ...)
     	if(execv_status == ERROR_STATUS)
     	{
     		syslog(LOG_ERR,"ERROR: Exeuting execv command");
+    		printf("ERROR: Exeuting execv command\n");
     		exit(ERROR_STATUS);
     	}
       	
@@ -92,11 +95,13 @@ bool do_exec(int count, ...)
     	if(pid1 == ERROR_STATUS)
     	{
     		syslog(LOG_ERR,"ERROR: Executing wait  command");
+    		printf("ERROR: Executing wait  command\n");
     		return false;
     	}
     	if (WIFEXITED (wait_status) == 0 || WEXITSTATUS (wait_status))
     	{
     		syslog(LOG_ERR,"ERROR: Child process didn't terminate properly");
+    		printf("ERROR: Child process didn't terminate properly\n");
     		return false;
     	}
     
@@ -140,6 +145,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     if (fd == ERROR_STATUS) 
     { 
     	syslog(LOG_ERR,"ERROR: Cannot open the file");
+    	printf("ERROR: Cannot open the file\n");
     	return false;
     }
     pid_t pid;
@@ -147,6 +153,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     if (pid == ERROR_STATUS)
     {
     	syslog(LOG_ERR,"ERROR: Executing fork command");
+    	printf("ERROR: Executing fork command\n");
     	return false;
     }
     else if (pid == SUCCESS_STATUS) /*In child, fork() successfull return 0*/
@@ -154,6 +161,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     	if (dup2(fd, 1) < 0)   /*Redirecting standard output to a file specified by output file */
     	{ 
     		syslog(LOG_ERR,"ERROR: Could not redirect standard output to output file");
+    		printf("ERROR: Could not redirect standard output to output file\n");
     		return false;
     	}
    	close(fd);
@@ -162,6 +170,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     	if(execv_status == ERROR_STATUS)
     	{
     		syslog(LOG_ERR,"ERROR: Exeuting execv command");
+    		printf("ERROR: Exeuting execv command\n");
     		exit(ERROR_STATUS);
     	}
       	
@@ -173,11 +182,13 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     	if(pid1 == ERROR_STATUS)
     	{
     		syslog(LOG_ERR,"ERROR: Executing wait  command");
+    		printf("ERROR: Executing wait  command\n");
     		return false;
     	}
     	if (WIFEXITED (wait_status) == 0 || WEXITSTATUS (wait_status))
     	{
     		syslog(LOG_ERR,"ERROR: Child process didn't terminate properly");
+    		printf("ERROR: Child process didn't terminate properly\n");
     		return false;
     	}
     
