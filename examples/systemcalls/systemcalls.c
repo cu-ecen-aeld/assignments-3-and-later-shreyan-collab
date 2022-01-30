@@ -1,3 +1,13 @@
+/*
+@File name :systemcall.c
+@brief     :Executing system cals through various functions
+@author    :Shreyan Prabhu 
+@Date	   :01/26/2022
+@References:Linux System Programming by Robert Love
+*/
+
+
+
 #include "systemcalls.h"
 #include <stdlib.h>
 #include <sys/types.h>
@@ -23,19 +33,38 @@ bool do_system(const char *cmd)
     openlog("Systemcalls.c-Log Messages for system() call", 0 , LOG_USER);
     int status = 0;
     status = system(cmd);        	/*Making a system call*/
-    if ( status == ERROR_STATUS)
+    
+    if (cmd == NULL)
+    {
+    	if(status == 0)
+    	{
+	   syslog(LOG_ERR,"ERROR: Command is NULL and No shell is available");
+	   printf("ERROR: No shell is available\n");
+	   closelog();
+	   return false;
+    	
+    	}
+    	if(status != 0)
+    	{
+    	   syslog(LOG_ERR,"ERROR: Command is NULL but shell is available");
+	   printf("ERROR: Command is NULL but shell is available\n");
+	   closelog();
+	   return false;
+    	}
+    
+    }
+    
+    if (status == ERROR_STATUS || status > 0)
     {
   	syslog(LOG_ERR,"ERROR: System Call failed");
   	printf("ERROR: System Call failed\n");
   	closelog();
     	return false;
     }
-    else
-    {
-    	syslog(LOG_DEBUG,"DEBUG: System call is executed");
-    	closelog();
-    	return true;
-    }
+    
+    syslog(LOG_DEBUG,"DEBUG: System call is executed");
+    closelog();
+    return true;
 }
 
 /**
