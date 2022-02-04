@@ -68,10 +68,11 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
      {
      	syslog(LOG_ERR,"ERROR: Thread could not be created now");
      	printf("ERROR: Thread could not be created now");
+     	closelog();
      	return false;
      	
      }
-     
+    closelog(); 
     return true;
 }
 
