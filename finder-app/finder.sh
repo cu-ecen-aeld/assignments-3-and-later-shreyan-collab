@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # @File name :finder.sh
 # @brief     :Finder script to find the occurence of a string within
 #	       a directory
