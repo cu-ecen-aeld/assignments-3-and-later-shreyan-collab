@@ -9,6 +9,18 @@ NUMFILES=10
 WRITESTR=AELD_IS_FUN
 WRITEDIR=/tmp/aeld-data
 username=$(cat /etc/finder-app/conf/username.txt)
+WRITERAPP="writer"
+FINDERAPP="finder.sh"
+
+if [ -z $(which writer) ]
+then
+	WRITERAPP="./writer"
+fi
+
+if [ -z $(which finder) ]
+then
+	FINDERAPP="./finder.sh"
+fi
 
 if [ $# -lt 2 ]
 then
@@ -46,10 +58,10 @@ fi
 
 for i in $( seq 1 $NUMFILES)
 do
-	writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	${WRITERAPP} "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
-OUTPUTSTRING=$(finder.sh "$WRITEDIR" "$WRITESTR")
+OUTPUTSTRING=$(${FINDERAPP} "$WRITEDIR" "$WRITESTR")
 
 set +e
 echo ${OUTPUTSTRING} | grep "${MATCHSTR}"
