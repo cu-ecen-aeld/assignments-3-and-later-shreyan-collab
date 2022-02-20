@@ -113,7 +113,7 @@ int main(int argc,  char *argv[])
 
 	
 		
-	//signal_init();
+	signal_init();
 	openlog("AESDSocket",LOG_PID,LOG_USER);
 	printf("Welcome to Socket \n");
 	memset(&hints, 0, sizeof hints); // make sure the struct is empty
