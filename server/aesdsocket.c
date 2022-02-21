@@ -30,6 +30,7 @@
 
 
 int socketfd = 0, socketnewfd = 0,fd=0;
+char *receive_buffer = NULL;
 
 static void signal_handler (int signo)
 {
@@ -43,10 +44,12 @@ static void signal_handler (int signo)
 		syslog(LOG_DEBUG,"Caught Signal SIGTERM, exiting");
 		
 	}
+
 	shutdown(socketfd, SHUT_RDWR);
  	shutdown(socketnewfd, SHUT_RDWR);
  	close(socketfd);
  	close(socketnewfd);
+ 	close(fd);
  	unlink("/var/tmp/aesdsocketdata");
 	exit(0);				
 }
@@ -64,6 +67,7 @@ void signal_init()
 		syslog(LOG_ERR,"Error in handling SIGINT");
 		exit(-1);
 	}
+
 	
 
 }
@@ -157,7 +161,7 @@ int main(int argc,  char *argv[])
 
         while (1)
         {
-        	char *receive_buffer = (char *) malloc (BUFFER_SIZE * sizeof(char));
+        	receive_buffer = (char *) malloc (BUFFER_SIZE * sizeof(char));
 		if (receive_buffer == NULL)
 		{
 			syslog(LOG_ERR,"malloc() error"); 
@@ -175,8 +179,8 @@ int main(int argc,  char *argv[])
         		syslog(LOG_ERR,"Accept comamnd error");
         		exit(-1);
         	}
-        	syslog(LOG_DEBUG, "Accepted connection from %s", inet_ntoa(host_address.sin_addr)); 
-        	printf("Accepted connection from %s", inet_ntoa(host_address.sin_addr));
+        	syslog(LOG_DEBUG, "Accepted connection from %s\n", inet_ntoa(host_address.sin_addr)); 
+        	printf("Accepted connection from %s\n", inet_ntoa(host_address.sin_addr));
         	
         	while (packet_complete == false)
         	{
@@ -205,13 +209,17 @@ int main(int argc,  char *argv[])
 			}
 		        
 		        total_packet_size = total_packet_size + receive_bytes;
-		        receive_buffer = (char *) realloc (receive_buffer, total_packet_size + 1);
+		        char *receive_buffer1 = (char *) realloc (receive_buffer, total_packet_size + 1);
 		        if (receive_buffer == NULL)
 		        {
 		        	syslog(LOG_ERR,"Realloc() Error");
         			printf("Realloc() Error \n");
         			break;
 		        } 
+			else
+			{
+					receive_buffer = receive_buffer1;
+			}
 		        
 		        strncat(receive_buffer, temp_buffer, receive_bytes);
 			syslog(LOG_DEBUG,"Appended String is %s",receive_buffer);
@@ -234,18 +242,27 @@ int main(int argc,  char *argv[])
 			lseek(fd, 0, SEEK_SET);
 			send_buffer = (char *) malloc(total_packet_size * sizeof(char));
 		        bytes_read = read(fd, send_buffer, total_packet_size );
+			if(bytes_read == -1)
+			{
+				syslog(LOG_ERR,"Error in Reading");
+				exit(-1);
+			}
 			status = send(socketnewfd, send_buffer, bytes_read, 0);
 			if(status == -1)
 			{
 				syslog(LOG_ERR,"Sending to host failed");
 				exit(-1);
 			}
-			free(receive_buffer);					/*Freeing all the buffers*/
-			free(send_buffer);
-		   	close(fd);	        
-		   	syslog(LOG_DEBUG, "Closed connection from %s",inet_ntoa(host_address.sin_addr)); 
-        	        printf("Closed connection from %s",inet_ntoa(host_address.sin_addr));
+			close(fd);
+			free(send_buffer);					/*Freeing all the buffers*/
+			free(receive_buffer);	     
+			receive_buffer=NULL;
+			send_buffer=NULL;   
+		   	syslog(LOG_DEBUG, "Closed connection from %s\n",inet_ntoa(host_address.sin_addr)); 
+        	        printf("Closed connection from %s\n",inet_ntoa(host_address.sin_addr));
 		       
 	}
+	
+	
 
 }
