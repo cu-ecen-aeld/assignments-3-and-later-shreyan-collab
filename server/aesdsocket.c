@@ -1,5 +1,10 @@
-
-/*https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch*/
+/*
+*@Name: aesdsocket.c
+*@Author: Shreyan Prabhu D
+*@Brief: Source file to start aesd application which can send and receive pockets
+*@Reference:https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch
+*		  : Linux System Programming Robert Love
+*/
 
 #include <string.h>
 #include <sys/types.h>
@@ -14,12 +19,14 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <linux/fs.h>
-
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 #define PORTNO     "9000"
-#define BACKLOGS   10
-#define PERMISSION 0644
-#define BUFFER_SIZE  100
+#define BACKLOGS    10
+#define PERMISSION  0644
+#define BUFFER_SIZE 100
 
 
 int socketfd = 0, socketnewfd = 0,fd=0;
@@ -28,29 +35,20 @@ static void signal_handler (int signo)
 {
 	if(signo == SIGINT)
 	{
-		syslog(LOG_DEBUG,"Caught Signal SIGINT, exiting");
-		//free(receive_buffer);
-		//free(send_buffer);
-								
+		syslog(LOG_DEBUG,"Caught Signal SIGINT, exiting");						
 	}
 	
 	if(signo == SIGTERM)
 	{
 		syslog(LOG_DEBUG,"Caught Signal SIGTERM, exiting");
-unlink("/var/tmp/aesdsocketdata");
-		//free(receive_buffer);
-		//free(send_buffer);
-		
 		
 	}
-	exit(EXIT_SUCCESS);
 	shutdown(socketfd, SHUT_RDWR);
  	shutdown(socketnewfd, SHUT_RDWR);
  	close(socketfd);
  	close(socketnewfd);
  	unlink("/var/tmp/aesdsocketdata");
- 	//free(receive_buffer);
-	exit(EXIT_SUCCESS);				/*TO DO: Graceful exit what we need to return?*/
+	exit(0);				
 }
 
 
@@ -64,7 +62,7 @@ void signal_init()
 	if (signal(SIGTERM, signal_handler) == SIG_ERR)
 	{
 		syslog(LOG_ERR,"Error in handling SIGINT");
-			exit(-1);
+		exit(-1);
 	}
 	
 
@@ -72,26 +70,22 @@ void signal_init()
 
 void daemon_mode()
 {
-	 	/* create new process */
- 	pid_t pid = fork ( );
+ 	pid_t pid = fork ( );				/*Through  fork command creating new process*/
  	if (pid == -1)
  	exit(-1);
  		
- 	else if (pid != 0)
- 		exit (EXIT_SUCCESS);
- 	/* create new session and process group */
-	 if (setsid ( ) == -1)
+ 	else if (pid != 0)				/* Creating process group and new session */
+ 		exit (0);
+ 		
+	 if (setsid ( ) == -1)				/*set the working directory to the root directory */
  		exit(-1);
- 	/* set the working directory to the root directory */
+ 	
  	if (chdir ("/") == -1)
  		exit(-1);
 
- 	/* redirect fd's 0,1,2 to /dev/null */
- 	
- 	
- 	open ("/dev/null", O_RDWR); /* stdin */
- 	dup (0); /* stdout */
- 	dup (0); /* stderror */
+ 	open ("/dev/null", O_RDWR); 			/* redirect fd's 0,1,2 to /dev/null */ /* stdin */
+ 	dup (0); 					/* stdout */
+ 	dup (0); 					/* stderror */
 }
 
 int main(int argc,  char *argv[])
@@ -99,27 +93,24 @@ int main(int argc,  char *argv[])
 
 
 	struct addrinfo hints;
-	struct addrinfo *result;  // will point to the results
-	struct sockaddr host_address;
+	struct addrinfo *result;  	
+	struct sockaddr_in host_address;
 	socklen_t host_address_size;
 	int receive_bytes = 0;
 	char temp_buffer[BUFFER_SIZE];
-	 /*TO DO: Check is this line is reuqired*/
 	int byte_count=0;
 	int total_packet_size=0;
 	char *send_buffer = NULL;
 	int bytes_read=0;
 	int status=0;
 
-	
-		
 	signal_init();
 	openlog("AESDSocket",LOG_PID,LOG_USER);
 	printf("Welcome to Socket \n");
-	memset(&hints, 0, sizeof hints); // make sure the struct is empty
-	hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-	hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+	memset(&hints, 0, sizeof hints); /* Ensuring the structure is empty*/
+	hints.ai_family = AF_UNSPEC;     /* Not specifying IPV4 or IPV6*/
+	hints.ai_socktype = SOCK_STREAM; 
+	hints.ai_flags = AI_PASSIVE;    
 	status =  getaddrinfo(NULL, PORTNO , &hints, &result);
         if (status != 0)
         {
@@ -141,7 +132,7 @@ int main(int argc,  char *argv[])
         
         }
         
-         freeaddrinfo(result);
+        freeaddrinfo(result);
 	if( argc > 1 && !strcmp("-d", argv[1]) ) 
 	{
 		syslog(LOG_INFO, "Running as daemon");
@@ -176,7 +167,7 @@ int main(int argc,  char *argv[])
 		}
 		memset(receive_buffer,0,BUFFER_SIZE);
         	bool packet_complete = false;
-                memset(temp_buffer, 0, BUFFER_SIZE);
+               memset(temp_buffer, 0, BUFFER_SIZE);
         	host_address_size = sizeof(struct sockaddr);
         	socketnewfd= accept(socketfd, (struct sockaddr *)&host_address, &host_address_size);
         	if (socketnewfd == -1)
@@ -184,19 +175,19 @@ int main(int argc,  char *argv[])
         		syslog(LOG_ERR,"Accept comamnd error");
         		exit(-1);
         	}
-        	syslog(LOG_DEBUG, "Accepted connection from XXX\n"); /*TODO: check XXX*/
-        	printf("Accepted connection from XXX\n");
+        	syslog(LOG_DEBUG, "Accepted connection from %s", inet_ntoa(host_address.sin_addr)); 
+        	printf("Accepted connection from %s", inet_ntoa(host_address.sin_addr));
         	
         	while (packet_complete == false)
         	{
         		receive_bytes = recv(socketnewfd, temp_buffer, BUFFER_SIZE, 0);
         		if (receive_bytes == -1)
         		{
-        			syslog(LOG_ERR,"Accept comamnd error");
+        			syslog(LOG_ERR,"Accept command error");
         			printf("Receive comamnd error\n");
         			exit(-1);
         		}
-			else if (receive_bytes == 0)
+			else if (receive_bytes == 0)				/*No data is received*/
 			{
 				syslog(LOG_DEBUG,"Connection Closed");
         			printf("Connection closed r\n");
@@ -204,7 +195,7 @@ int main(int argc,  char *argv[])
 			}
 			for (byte_count = 0; byte_count < BUFFER_SIZE; byte_count++)
 			{
-				if(temp_buffer[byte_count] == '\n')
+				if(temp_buffer[byte_count] == '\n')			/*Checking if new packet is received*/
 				{
 					packet_complete = true;
 					syslog(LOG_DEBUG,"String received is %s",temp_buffer);
@@ -249,18 +240,12 @@ int main(int argc,  char *argv[])
 				syslog(LOG_ERR,"Sending to host failed");
 				exit(-1);
 			}
-			free(receive_buffer);
+			free(receive_buffer);					/*Freeing all the buffers*/
 			free(send_buffer);
 		   	close(fd);	        
-		   	syslog(LOG_DEBUG, "Closed connection from XXX\n"); /*TODO: check XXX*/
-        	        printf("Closed connection from XXX\n");
+		   	syslog(LOG_DEBUG, "Closed connection from %s",inet_ntoa(host_address.sin_addr)); 
+        	        printf("Closed connection from %s",inet_ntoa(host_address.sin_addr));
 		       
-        	 
-        
-        
 	}
-	
-		  	
-	
 
 }
