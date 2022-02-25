@@ -22,6 +22,10 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/queue.h>
+#include <pthread.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define PORTNO     "9000"
 #define BACKLOGS    10
@@ -31,6 +35,22 @@
 
 int socketfd = 0, socketnewfd = 0,fd=0;
 char *receive_buffer = NULL;
+int total_packet_size=0;
+typedef struct thread_data
+{
+	pthread_mutex_t *mutex;
+	pthread_t thread_id;
+	bool thread_complete_success;
+	int accept_socket_fd;
+}thread_data_t;
+
+struct slist_data_s
+{
+	thread_data_t thread_data_args;
+	SLIST_ENTRY(slist_data_s) entries;
+};
+typedef struct slist_data_s slist_data_t;
+pthread_mutex_t mutex1;
 
 static void signal_handler (int signo)
 {
@@ -92,99 +112,80 @@ void daemon_mode()
  	dup (0); 					/* stderror */
 }
 
-int main(int argc,  char *argv[])
+void alarm_handler (int signo)
 {
 
+	
+	int status =0;
+	int fd=0;
+	char time_string[100];
+	time_t rawtime;
+	struct tm* currenttime;
+	time (&rawtime);
+	currenttime = localtime (&rawtime);
+	strftime(time_string, sizeof(time_string), "timestamp:%T %d %b %a %Y %z\n", currenttime);
+	
+	fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND , 0644);
+	if (fd == -1)
+	{
+		syslog(LOG_ERR,"File cannot be opened in WRITE mode");
+		perror("WRITE");
+		exit(-1);
+	}
+	syslog(LOG_DEBUG, "OPEN status %d", fd);
+	status = pthread_mutex_lock(&mutex1);
+	if(status)
+	{
+		syslog(LOG_ERR, "Mutex_lock error");
+		
+	}
+	
+	lseek(fd, 0, SEEK_END);
+	status = write(fd, time_string, strlen (time_string));
+	syslog(LOG_DEBUG, "Number of bytes written %d", status);
+	if (status == -1)
+	{
+		syslog(LOG_ERR,"The received data is not written");
+		exit(-1);
+	}
+	status = pthread_mutex_unlock(&mutex1);
+	if(status) 
+	{
+		syslog(LOG_ERR, "ERROR: mutex_lock() fail");
+		
+	}
+	close(fd);
+	
+	
+}
 
-	struct addrinfo hints;
-	struct addrinfo *result;  	
-	struct sockaddr_in host_address;
-	socklen_t host_address_size;
-	int receive_bytes = 0;
-	char temp_buffer[BUFFER_SIZE];
-	int byte_count=0;
-	int total_packet_size=0;
+void *thread_func(void *thread_param)
+{
+
 	char *send_buffer = NULL;
 	int bytes_read=0;
+	int byte_count=0;
+	int receive_bytes = 0;
 	int status=0;
-
-	signal_init();
-	openlog("AESDSocket",LOG_PID,LOG_USER);
-	printf("Welcome to Socket \n");
-	memset(&hints, 0, sizeof hints); /* Ensuring the structure is empty*/
-	hints.ai_family = AF_UNSPEC;     /* Not specifying IPV4 or IPV6*/
-	hints.ai_socktype = SOCK_STREAM; 
-	hints.ai_flags = AI_PASSIVE;    
-	status =  getaddrinfo(NULL, PORTNO , &hints, &result);
-        if (status != 0)
-        {
-      		syslog(LOG_ERR,"Getaddrinfo error");  	
-      		exit(-1);
-        }
-        socketfd= socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-        if (socketfd == -1)
-        {
-        	syslog(LOG_ERR,"Socket Creation error");  	
-      		exit(-1);
-        
-        }
-	status= bind(socketfd, result->ai_addr, result->ai_addrlen);
-	if (status == -1)
-        {
-        	syslog(LOG_ERR,"Bind error");  	
-      		exit(-1);
-        
-        }
-        
-        freeaddrinfo(result);
-	if( argc > 1 && !strcmp("-d", argv[1]) ) 
+  	bool packet_complete = false;
+  	
+  	char temp_buffer[BUFFER_SIZE];
+	receive_buffer = (char *) malloc (BUFFER_SIZE * sizeof(char));
+	thread_data_t *thread_data = (thread_data_t *)thread_param;
+	if (receive_buffer == NULL)
 	{
-		syslog(LOG_INFO, "Running as daemon");
-		daemon_mode();
-	}
-	status= listen(socketfd, BACKLOGS);
-        if (status == -1)
-        {
-        	syslog(LOG_ERR,"Listen error");  	
+		syslog(LOG_ERR,"malloc() error"); 
+		printf("Malloc Error \n");
       		exit(-1);
-        
-        }
-        
-        fd = creat("/var/tmp/aesdsocketdata", 0644);
-        if (fd == -1)
-        {
-        
-        	syslog(LOG_ERR,"File could not be created");
-        	exit(-1);        	
-        }
-      
-
-        while (1)
-        {
-        	receive_buffer = (char *) malloc (BUFFER_SIZE * sizeof(char));
-		if (receive_buffer == NULL)
-		{
-			syslog(LOG_ERR,"malloc() error"); 
-			printf("Malloc Error \n");
-      			exit(-1);
 	
-		}
-		memset(receive_buffer,0,BUFFER_SIZE);
-        	bool packet_complete = false;
-               memset(temp_buffer, 0, BUFFER_SIZE);
-        	host_address_size = sizeof(struct sockaddr);
-        	socketnewfd= accept(socketfd, (struct sockaddr *)&host_address, &host_address_size);
-        	if (socketnewfd == -1)
+	}
+	memset(receive_buffer,0,BUFFER_SIZE);
+ 
+        memset(temp_buffer, 0, BUFFER_SIZE);
+        
+        while (packet_complete == false)
         	{
-        		syslog(LOG_ERR,"Accept comamnd error");
-        		exit(-1);
-        	}
-        	syslog(LOG_DEBUG, "Accepted connection from %s\n", inet_ntoa(host_address.sin_addr)); 
-        	printf("Accepted connection from %s\n", inet_ntoa(host_address.sin_addr));
-        	
-        	while (packet_complete == false)
-        	{
-        		receive_bytes = recv(socketnewfd, temp_buffer, BUFFER_SIZE, 0);
+        		receive_bytes = recv(thread_data->accept_socket_fd, temp_buffer, BUFFER_SIZE, 0);
         		if (receive_bytes == -1)
         		{
         			syslog(LOG_ERR,"Accept command error");
@@ -209,60 +210,213 @@ int main(int argc,  char *argv[])
 			}
 		        
 		        total_packet_size = total_packet_size + receive_bytes;
-		        char *receive_buffer1 = (char *) realloc (receive_buffer, total_packet_size + 1);
+		        receive_buffer = (char *) realloc (receive_buffer, total_packet_size + 1);
 		        if (receive_buffer == NULL)
 		        {
 		        	syslog(LOG_ERR,"Realloc() Error");
         			printf("Realloc() Error \n");
         			break;
 		        } 
-			else
-			{
-					receive_buffer = receive_buffer1;
-			}
-		        
 		        strncat(receive_buffer, temp_buffer, receive_bytes);
 			syslog(LOG_DEBUG,"Appended String is %s",receive_buffer);
 			}
-			
-		        fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND);
+			syslog(LOG_DEBUG,"Appended String is %s",receive_buffer);
+		        fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND , 0644);
 			if (fd == -1)
 			{
 				syslog(LOG_ERR,"File cannot be opened in WRITE mode");
 				perror("WRITE");
 				exit(-1);
 			}
+			syslog(LOG_DEBUG, "OPEN status %d", fd);
+			status = pthread_mutex_lock(thread_data->mutex);
+			if(status)
+			{
+				syslog(LOG_ERR, "ERROR: mutex_lock() fail");
+		
+			}
+	
 			lseek(fd, 0, SEEK_END);
 			status = write(fd, receive_buffer, strlen (receive_buffer));
+			//syslog(LOG_DEBUG, "Number of bytes length %ld", strlen(receive_buffer));
+			//syslog(LOG_DEBUG, "Number of bytes written %d", status);
 			if (status == -1)
 			{
 				syslog(LOG_ERR,"The received data is not written ");
 				exit(-1);
 			}
+			status = pthread_mutex_unlock(thread_data->mutex);
+			if(status) 
+			{
+			syslog(LOG_ERR, "ERROR: mutex_lock() fail");
+			}
+			int file_size = lseek(fd, 0, SEEK_CUR);
 			lseek(fd, 0, SEEK_SET);
-			send_buffer = (char *) malloc(total_packet_size * sizeof(char));
-		        bytes_read = read(fd, send_buffer, total_packet_size );
+			send_buffer = (char *) malloc(file_size * sizeof(char));
+			status = pthread_mutex_lock(thread_data->mutex);
+		        bytes_read = read(fd, send_buffer, file_size );
+		        	//syslog(LOG_DEBUG,"Bytes Read is %d", file_size);
 			if(bytes_read == -1)
 			{
+			
 				syslog(LOG_ERR,"Error in Reading");
 				exit(-1);
 			}
-			status = send(socketnewfd, send_buffer, bytes_read, 0);
+			status = send(thread_data->accept_socket_fd, send_buffer, bytes_read, 0);
 			if(status == -1)
 			{
 				syslog(LOG_ERR,"Sending to host failed");
 				exit(-1);
 			}
+			status = pthread_mutex_unlock(thread_data->mutex);
+			thread_data->thread_complete_success=true;
 			close(fd);
+			close(thread_data->accept_socket_fd);
 			free(send_buffer);					/*Freeing all the buffers*/
 			free(receive_buffer);	     
 			receive_buffer=NULL;
 			send_buffer=NULL;   
-		   	syslog(LOG_DEBUG, "Closed connection from %s\n",inet_ntoa(host_address.sin_addr)); 
-        	        printf("Closed connection from %s\n",inet_ntoa(host_address.sin_addr));
+			return (thread_data);
+		  
+ }
 		       
+
+int main(int argc,  char *argv[])
+{
+	struct itimerval delay;
+	signal (SIGALRM, alarm_handler);
+	delay.it_value.tv_sec =10;
+	delay.it_interval.tv_sec=10;
+	delay.it_value.tv_usec =0;
+	delay.it_interval.tv_usec=0;
+	
+	struct addrinfo hints;
+	struct addrinfo *result, *temp_ptr;  	
+	struct sockaddr_in host_address;
+	socklen_t host_address_size;
+	slist_data_t *add_thread=NULL;
+	int status=0;
+	SLIST_HEAD(slisthead, slist_data_s) head;
+	SLIST_INIT(&head);
+	
+	signal_init();
+	openlog("AESDSocket",LOG_PID,LOG_USER);
+	printf("Welcome to Socket \n");
+	memset(&hints, 0, sizeof hints); /* Ensuring the structure is empty*/
+	hints.ai_family = AF_UNSPEC;     /* Not specifying IPV4 or IPV6*/
+	hints.ai_socktype = SOCK_STREAM; 
+	hints.ai_flags = AI_PASSIVE;    
+	status =  getaddrinfo(NULL, PORTNO , &hints, &result);
+        if (status != 0)
+        {
+      		syslog(LOG_ERR,"Getaddrinfo error");  	
+      		exit(-1);
+        }
+        
+        for(temp_ptr = result; temp_ptr != NULL; temp_ptr = temp_ptr->ai_next)
+        { 
+        	socketfd= socket(result->ai_family, result->ai_socktype, 0);
+        	if (socketfd == -1)
+        	{
+        		syslog(LOG_ERR,"Socket Creation error");  	
+      			exit(-1);
+        
+       	}
+       	status = setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
+		status= bind(socketfd, result->ai_addr, result->ai_addrlen);
+		if (status == 0)
+        	{
+        		syslog(LOG_DEBUG,"Bind successfull");  	
+      			break; 
+       	}
+       }
+        
+       freeaddrinfo(result);
+       if(temp_ptr == NULL)
+       {
+       	syslog(LOG_DEBUG,"ERROR: bind() fail");
+       	exit(-1);
+       
+       }
+	if( argc > 1 && !strcmp("-d", argv[1]) ) 
+	{
+		syslog(LOG_INFO, "Running as daemon");
+		daemon_mode();
+	}
+	status= listen(socketfd, BACKLOGS);
+       if (status == -1)
+       {
+        	syslog(LOG_ERR,"Listen error");  	
+      		exit(-1);
+        
+        }
+        
+       	fd = creat("/var/tmp/aesdsocketdata", 0644);
+        	if (fd == -1)
+        	{
+        		syslog(LOG_ERR,"File could not be created");
+        		exit(-1);        	
+        	}
+      
+      	status = setitimer (ITIMER_REAL, &delay, NULL);
+	if(status)
+	{
+		syslog(LOG_ERR, "Error setting timer");
+		exit (-1);
+	}
+	
+	status = pthread_mutex_init(&mutex1, NULL);
+	if (status != 0)
+	{
+		syslog(LOG_ERR, "Mutex Initialization error");
+		exit (-1);
+	
+	}
+        while (1)
+        {
+
+        	host_address_size = sizeof(struct sockaddr);
+        	socketnewfd= accept(socketfd, (struct sockaddr *)&host_address, &host_address_size);
+        	if (socketnewfd == -1)
+        	{
+        		syslog(LOG_ERR,"Accept comamnd error");
+        		exit(-1);
+        	}
+        	syslog(LOG_DEBUG, "Accepted connection from %s\n", inet_ntoa(host_address.sin_addr)); 
+        	printf("Accepted connection from %s\n", inet_ntoa(host_address.sin_addr));
+        	add_thread = (slist_data_t *) malloc(sizeof(slist_data_t));  
+        	SLIST_INSERT_HEAD(&head, add_thread, entries);     
+        	add_thread->thread_data_args.mutex = &mutex1;
+        	add_thread->thread_data_args.accept_socket_fd = socketnewfd;
+        	add_thread->thread_data_args.thread_complete_success = false;
+        	
+        	
+        	pthread_create(&(add_thread->thread_data_args.thread_id), NULL, thread_func, &(add_thread->thread_data_args));
+        	SLIST_FOREACH(add_thread, &head, entries)
+        	{
+        		pthread_join(add_thread->thread_data_args.thread_id, NULL);
+        			add_thread = SLIST_FIRST(&head);
+        			SLIST_REMOVE_HEAD(&head, entries);
+        			free(add_thread);
+        			syslog(LOG_DEBUG, "Closed connection from %s\n",inet_ntoa(host_address.sin_addr)); 
+        	      		printf("Closed connection from %s\n",inet_ntoa(host_address.sin_addr));
+        	}
+        	
+        	
 	}
 	
 	
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
