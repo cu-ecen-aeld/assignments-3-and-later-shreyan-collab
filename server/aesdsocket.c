@@ -36,6 +36,7 @@
 int socketfd = 0, socketnewfd = 0,fd=0;
 char *receive_buffer = NULL;
 int total_packet_size=0;
+SLIST_HEAD(slisthead, slist_data_s) head;
 typedef struct thread_data
 {
 	pthread_mutex_t *mutex;
@@ -52,6 +53,12 @@ struct slist_data_s
 typedef struct slist_data_s slist_data_t;
 pthread_mutex_t mutex1;
 
+/*
+*@Function: signal_handler 
+*@brief: Handler function for handling different signals
+*@argument: Signal Type
+*@Return: None
+*/
 static void signal_handler (int signo)
 {
 	if(signo == SIGINT)
@@ -71,10 +78,23 @@ static void signal_handler (int signo)
  	close(socketnewfd);
  	close(fd);
  	unlink("/var/tmp/aesdsocketdata");
+ 	slist_data_t *add_thread = NULL;
+ 	SLIST_FOREACH(add_thread, &head, entries)
+        {
+		pthread_join(add_thread->thread_data_args.thread_id, NULL);
+        	SLIST_REMOVE(&head, add_thread, slist_data_s, entries);
+        	free(add_thread);
+        	break;
+      	}
 	exit(0);				
 }
 
-
+/*
+*@Function: signal_init 
+*@brief: Initializing the signals
+*@argument: None
+*@Return: None
+*/
 void signal_init()
 {
 	if (signal(SIGINT, signal_handler) == SIG_ERR)
@@ -88,10 +108,15 @@ void signal_init()
 		exit(-1);
 	}
 
-	
 
 }
 
+/*
+*@Function: daemon_mode
+*@brief: To start a process in daemon mode
+*@argument: None
+*@Return: None
+*/
 void daemon_mode()
 {
  	pid_t pid = fork ( );				/*Through  fork command creating new process*/
@@ -112,7 +137,13 @@ void daemon_mode()
  	dup (0); 					/* stderror */
 }
 
-void alarm_handler (int signo)
+/*
+*@Function: alarm_handler
+*@brief: Consists of handling function when an alarm is triggered
+*@argument: Alarm type
+*@Return: None
+*/
+void alarm_handler (int alarm)
 {
 
 	
@@ -123,7 +154,7 @@ void alarm_handler (int signo)
 	struct tm* currenttime;
 	time (&rawtime);
 	currenttime = localtime (&rawtime);
-	strftime(time_string, sizeof(time_string), "timestamp:%T %d %b %a %Y %z\n", currenttime);
+	strftime(time_string, sizeof(time_string), "timestamp:%T %d %b %a %Y %z\n", currenttime); /*RFC 2822 complaint strftime format*/
 	
 	fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND , 0644);
 	if (fd == -1)
@@ -159,6 +190,12 @@ void alarm_handler (int signo)
 	
 }
 
+/*
+*@Function: thread_func
+*@brief: Starting function of the new thread
+*@argument: The thread parameters
+*@Return: void pointer 
+*/
 void *thread_func(void *thread_param)
 {
 
@@ -238,8 +275,6 @@ void *thread_func(void *thread_param)
 	
 			lseek(fd, 0, SEEK_END);
 			status = write(fd, receive_buffer, strlen (receive_buffer));
-			//syslog(LOG_DEBUG, "Number of bytes length %ld", strlen(receive_buffer));
-			//syslog(LOG_DEBUG, "Number of bytes written %d", status);
 			if (status == -1)
 			{
 				syslog(LOG_ERR,"The received data is not written ");
@@ -255,7 +290,6 @@ void *thread_func(void *thread_param)
 			send_buffer = (char *) malloc(file_size * sizeof(char));
 			status = pthread_mutex_lock(thread_data->mutex);
 		        bytes_read = read(fd, send_buffer, file_size );
-		        	//syslog(LOG_DEBUG,"Bytes Read is %d", file_size);
 			if(bytes_read == -1)
 			{
 			
@@ -280,7 +314,12 @@ void *thread_func(void *thread_param)
 		  
  }
 		       
-
+/*
+*@Function: main
+*@brief: consists of Socket initialization, creating new threads and thread cleanup functions
+*@argument: argc- number of command line arguments,  argv -command line arguments stored in an array
+*@Return: 0 for success and 1 for failure
+*/
 int main(int argc,  char *argv[])
 {
 	struct itimerval delay;
@@ -296,7 +335,7 @@ int main(int argc,  char *argv[])
 	socklen_t host_address_size;
 	slist_data_t *add_thread=NULL;
 	int status=0;
-	SLIST_HEAD(slisthead, slist_data_s) head;
+	
 	SLIST_INIT(&head);
 	
 	signal_init();
@@ -313,6 +352,7 @@ int main(int argc,  char *argv[])
       		exit(-1);
         }
         
+        /*Reusing the socket*/
         for(temp_ptr = result; temp_ptr != NULL; temp_ptr = temp_ptr->ai_next)
         { 
         	socketfd= socket(result->ai_family, result->ai_socktype, 0);
@@ -389,17 +429,18 @@ int main(int argc,  char *argv[])
         	add_thread->thread_data_args.mutex = &mutex1;
         	add_thread->thread_data_args.accept_socket_fd = socketnewfd;
         	add_thread->thread_data_args.thread_complete_success = false;
-        	
-        	
         	pthread_create(&(add_thread->thread_data_args.thread_id), NULL, thread_func, &(add_thread->thread_data_args));
+        	
+        	/*Removing nodes by traversing through the linked list*/
         	SLIST_FOREACH(add_thread, &head, entries)
         	{
         		pthread_join(add_thread->thread_data_args.thread_id, NULL);
-        			add_thread = SLIST_FIRST(&head);
-        			SLIST_REMOVE_HEAD(&head, entries);
-        			free(add_thread);
-        			syslog(LOG_DEBUG, "Closed connection from %s\n",inet_ntoa(host_address.sin_addr)); 
-        	      		printf("Closed connection from %s\n",inet_ntoa(host_address.sin_addr));
+        		SLIST_REMOVE(&head, add_thread, slist_data_s, entries);
+        		free(add_thread);
+        		syslog(LOG_DEBUG, "Closed connection from %s\n",inet_ntoa(host_address.sin_addr)); 
+        	      	printf("Closed connection from %s\n",inet_ntoa(host_address.sin_addr));
+        	      	break;
+        	        	
         	}
         	
         	
