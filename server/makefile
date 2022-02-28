@@ -1,7 +1,6 @@
-
 CC= $(CROSS_COMPILE)gcc
 CFLAGS= -g -Wall
- LDFLAGS= -pthread 
+LDFLAGS= -pthread 
 
 TARGET= aesdsocket
 SRCS:= aesdsocket.c
