@@ -9,7 +9,7 @@ default: $(TARGET)
 all: $(TARGET)
 
 $(TARGET): $(SRCS) 
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(INCLUDES) 
+	$(CC) $(CFLAGS) $^ -o $@ $(INCLUDES) $(LDFLAGS) 
 
 clean: 	
 	rm -f *.o $(TARGET) *.elf *.map
