@@ -1,4 +1,7 @@
-CC= $(CROSS_COMPILE)gcc
+ifeq ($(CC),)
+	CC= $(CROSS_COMPILE)gcc
+endif
+
 ifeq ($(CFLAGS),)
 	CFLAGS= -g -Wall
 endif
