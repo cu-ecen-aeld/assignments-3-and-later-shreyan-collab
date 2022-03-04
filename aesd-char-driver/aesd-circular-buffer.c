@@ -11,6 +11,7 @@
 #ifdef __KERNEL__
 #include <linux/string.h>
 #else
+#include<stdio.h>
 #include <string.h>
 #endif
 
@@ -29,10 +30,41 @@
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
 			size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    /**
-    * TODO: implement per description
-    */
+    int iterations =0;
+    int total_buffer_size= buffer->entry[buffer->in_offs].size;
+    int commands_index = buffer->in_offs;
+ 
+   while(iterations < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+    {
+    
+    	if(char_offset <= (total_buffer_size - 1))
+        {
+        
+        	*entry_offset_byte_rtn = char_offset-(total_buffer_size - buffer->entry[commands_index].size);
+         	return &buffer->entry[commands_index];
+        }
+          	
+      	else if(char_offset == (total_buffer_size - 1))
+      	{
+      		*entry_offset_byte_rtn = char_offset;
+         	return &buffer->entry[commands_index];
+      	
+      	}
+        else 
+        {
+            if(++commands_index == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+            {
+                commands_index = 0;
+            }
+           
+           total_buffer_size += buffer->entry[commands_index].size;
+        }
+
+        iterations++;
+    }
+
     return NULL;
+
 }
 
 /**
@@ -47,6 +79,32 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
     /**
     * TODO: implement per description 
     */
+   if(buffer->full == false)
+   {
+        buffer->entry[buffer->in_offs] = *(add_entry);
+        buffer->in_offs++;
+   }
+   else if(buffer->full == true)
+   {
+   	buffer->entry[buffer->in_offs] = *(add_entry);
+        buffer->out_offs++;
+        buffer->in_offs++; 
+         if(buffer->out_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+  	 {
+        	buffer->out_offs = 0;
+      	 }
+   }
+
+   if(buffer->in_offs == buffer->out_offs )
+   {
+        buffer->full = true;
+   }
+   if(buffer->in_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+   {
+        buffer->in_offs = 0;
+   }
+  
+
 }
 
 /**
