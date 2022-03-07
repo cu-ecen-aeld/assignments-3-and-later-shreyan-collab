@@ -3,6 +3,7 @@
  * @brief Functions and data related to a circular buffer imlementation
  *
  * @author Dan Walkes
+ * @Modified by Shreyan Prabhu D
  * @date 2020-03-01
  * @copyright Copyright (c) 2020
  *
@@ -11,7 +12,7 @@
 #ifdef __KERNEL__
 #include <linux/string.h>
 #else
-#include<stdio.h>
+#include <stdio.h>
 #include <string.h>
 #endif
 
@@ -33,18 +34,23 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
     int iterations =0;
     int total_buffer_size= buffer->entry[buffer->in_offs].size;
     int commands_index = buffer->in_offs;
- 
-   while(iterations < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+   if((buffer == NULL) ) /*Invalid argument check*/
+   {
+   	return NULL;
+   }
+
+
+   while(iterations < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)	/*Running for max iterations permissible*/
     {
     
-    	if(char_offset <= (total_buffer_size - 1))
+    	if(char_offset <= (total_buffer_size - 1))			
         {
         
         	*entry_offset_byte_rtn = char_offset-(total_buffer_size - buffer->entry[commands_index].size);
          	return &buffer->entry[commands_index];
         }
           	
-      	else if(char_offset == (total_buffer_size - 1))
+      	else if(char_offset == (total_buffer_size - 1))		/*When offset equals end of one command*/
       	{
       		*entry_offset_byte_rtn = char_offset;
          	return &buffer->entry[commands_index];
@@ -52,7 +58,7 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
       	}
         else 
         {
-            if(++commands_index == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+            if(++commands_index == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) /*When buffer is fully traversed*/
             {
                 commands_index = 0;
             }
@@ -79,12 +85,12 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
     /**
     * TODO: implement per description 
     */
-   if(buffer->full == false)
+   if(buffer->full == false)						/*Adding command when buffer is not full*/
    {
         buffer->entry[buffer->in_offs] = *(add_entry);
         buffer->in_offs++;
    }
-   else if(buffer->full == true)
+   else if(buffer->full == true)					/*Adding command when buffer is full*/
    {
    	buffer->entry[buffer->in_offs] = *(add_entry);
         buffer->out_offs++;
@@ -95,7 +101,7 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
       	 }
    }
 
-   if(buffer->in_offs == buffer->out_offs )
+   if(buffer->in_offs == buffer->out_offs )			
    {
         buffer->full = true;
    }
@@ -113,4 +119,7 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
 void aesd_circular_buffer_init(struct aesd_circular_buffer *buffer)
 {
     memset(buffer,0,sizeof(struct aesd_circular_buffer));
+    buffer->full = false;
+    buffer->in_offs = 0;
+    buffer->out_offs = 0;
 }

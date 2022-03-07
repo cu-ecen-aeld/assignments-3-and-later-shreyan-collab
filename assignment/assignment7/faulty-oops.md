@@ -1,6 +1,7 @@
 #Analysis of kernel OOPS Message
-
-*Unable to handle kernel NULL pointer dereference at virtual address 0000000000000000
+echo "hello_world" > /dev/faulty
+```bash
+Unable to handle kernel NULL pointer dereference at virtual address 0000000000000000
 Mem abort info:
   ESR = 0x96000046
   EC = 0x25: DABT (current EL), IL = 32 bits
@@ -42,19 +43,23 @@ Call trace:
  do_el0_svc+0x70/0x90
  el0_svc+0x14/0x20
  el0_sync_handler+0xb0/0xc0
- el0_sync+0x174/0x180*
- 
+ el0_sync+0x174/0x180
+ Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
+---[ end trace 9803f007225f1848 ]---
+```
+
 OOPS Message also known as page fault are due to NULL pointer dereference or due to the use of incorrect pointer values. In  this message, the issue is because the kernel could not able NULL pointer dereference at virtual address 00. The address used byb the processor is a virtual address and is mapped to physical address through page table. When an invalid pointer is dereferenced, the paging mechanism fails to map the pointer to a physical address due to which the processor signal page fault. Through OOPS message we can also understand where exactly the fault occured through program counter. In this message, the fault occured in faulty_write function which is 0x10 address location and is 0x20 bytes long when faulty module is loaded. 
 With the help of call trace we can understand where the faulty function has occured. 
 
 In the assembly section of the code, the faulty_write is referenced where the fault occurs at address 0x10. 
- 
- output/host/bin/aarch64-linux-objdump -S output/build/ldd-e5b595159915582cd4985a9b92b67bc6acff405a/misc-modules/faulty.ko 
+
+```bash 
+output/host/bin/aarch64-linux-objdump -S output/build/ldd-e5b595159915582cd4985a9b92b67bc6acff405a/misc-modules/faulty.ko 
 
 output/build/ldd-e5b595159915582cd4985a9b92b67bc6acff405a/misc-modules/faulty.ko:     file format elf64-littleaarch64
 
 
-*Disassembly of section .text:
+Disassembly of section .text:
 
 0000000000000000 <faulty_write>:
    0:	d2800001 	mov	x1, #0x0                   	// #0
@@ -196,8 +201,7 @@ Disassembly of section .text.ftrace_trampoline:
 
 0000000000000302 <.text.ftrace_trampoline>:
 
-Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
----[ end trace 9803f007225f1847 ]---*
+```
 
 
 
