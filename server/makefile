@@ -1,7 +1,14 @@
+ifeq ($(CC),)
+	CC= $(CROSS_COMPILE)gcc
+endif
 
-CC= $(CROSS_COMPILE)gcc
-CFLAGS= -g -Wall
- LDFLAGS= -pthread 
+ifeq ($(CFLAGS),)
+	CFLAGS= -g -Wall
+endif
+ 
+ifeq ($(LDFLAGS),)
+	LDFLAGS= -pthread 
+endif
 
 TARGET= aesdsocket
 SRCS:= aesdsocket.c
@@ -9,8 +16,10 @@ SRCS:= aesdsocket.c
 default: $(TARGET)
 all: $(TARGET)
 
+
 $(TARGET): $(SRCS) 
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ $(INCLUDES) 
+	$(CC) $(CFLAGS) $^ -o $@ $(INCLUDES) $(LDFLAGS)
+
 
 clean: 	
 	rm -f *.o $(TARGET) *.elf *.map
