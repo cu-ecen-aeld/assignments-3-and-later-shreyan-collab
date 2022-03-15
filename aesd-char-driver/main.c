@@ -8,8 +8,8 @@
  * @author Dan Walkes
  * @date 2019-10-22
  * @copyright Copyright (c) 2019
- *
- *Reference: https://github.com/cu-ecen-aeld/ldd3/blob/master/scull/main.c
+ *Reference: 1) Linux Device Drive Edition Chapter 3
+ * 	     2) https://github.com/cu-ecen-aeld/ldd3/blob/master/scull/main.c
  */
 
 #include <linux/module.h>
@@ -50,37 +50,42 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 {
 	ssize_t value = 0;
 	ssize_t offset=0;			
-	int bytes_available=0;
+	int bytes_available=0;  
 	int bytes_read=0;
+	int mutex_status=0;
 	 
 	struct aesd_dev *dev = filp->private_data; 
 	struct aesd_buffer_entry* buffer_entry = NULL;
 	
-	PDEBUG("Amount of bytes read %zu with offset %lld",count,*f_pos); 
-	if (mutex_lock_interruptible(&dev->mutex1))
+	PDEBUG("Bytes read %zu with offset %lld",count,*f_pos); 
+	mutex_status = mutex_lock_interruptible(&dev->mutex1);
+	if (mutex_status)			/*Return 0 if mutex obtained*/
 	{
-		return -ERESTARTSYS;
+		return -ERESTARTSYS;   /*Kernel can re-execute when there is some interruption*/
+	}
+	else if(mutex_status == 0)
+	{
+		PDEBUG("Mutex Acquired"); 
 	}	
 	buffer_entry = aesd_circular_buffer_find_entry_offset_for_fpos(&dev->buffer, *f_pos, &offset);
 	if(buffer_entry == NULL)
 	{
 		goto exit;
 	}
-
-	bytes_available = buffer_entry->size - offset;
-	bytes_read=bytes_available;
-	if(count < bytes_available)
+	bytes_available = buffer_entry->size - offset; /*Calulating the total bytes available which can be read*/
+	bytes_read=bytes_available;		/*Complete read */
+	if(count < bytes_available)		/* Partial read */
 	{
 		bytes_read=count;
 	}
-	if (copy_to_user(buf , (buffer_entry->buffptr + offset), bytes_read))
+	if (copy_to_user(buf , (buffer_entry->buffptr + offset), bytes_read)) /*Storing content of kernel space to user space in buffer*/
 	{
 		value = -EFAULT;
 		goto exit;
 	}
 	
-	*f_pos += bytes_read;
-	value = bytes_read;
+	*f_pos += bytes_read;				/*Updating file pointer*/
+	value = bytes_read;		
 	exit:
 			mutex_unlock(&dev->mutex1);
 			return value;
@@ -92,17 +97,23 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 	ssize_t value ;
 	size_t bytes_not_copied ;
 	const char* removed_entry = NULL;
+	int mutex_status=0;
 	
 	struct aesd_dev* dev = NULL;
 	dev = (filp->private_data);
 	PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
-	if (mutex_lock_interruptible(&dev->mutex1))
+	
+	mutex_status = mutex_lock_interruptible(&dev->mutex1);
+	if (mutex_status)              /*Return 0 if mutex obtained*/
 	{	
-		value= -ERESTARTSYS;
+		value= -ERESTARTSYS;				/*Kernel can re-execute when there is some interruption*/
 		goto exit;
 	}
-	
-
+	else if(mutex_status == 0)
+	{
+		PDEBUG("Mutex Acquired"); 
+	}
+	/*If the input size is zero, alloc or use realloc if size is gretater than zero*/
 	if (dev->write_entry_value.size == 0)
 	{
 		dev->write_entry_value.buffptr = kzalloc(count,GFP_KERNEL);
@@ -112,22 +123,23 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 		dev->write_entry_value.buffptr = krealloc(dev->write_entry_value.buffptr, dev->write_entry_value.size + count, GFP_KERNEL);
 	}
 		
-		
+	/*kalloc error condition*/
 	if (dev->write_entry_value.buffptr == NULL)
 	{ 
-		value = -ENOMEM;
-		goto cleanup;
+		goto exit;
 	}
 
-	bytes_not_copied = copy_from_user((void *)(&dev->write_entry_value.buffptr[dev->write_entry_value.size]), buf, count);
-	value=count;
+	bytes_not_copied = copy_from_user((void *)(&dev->write_entry_value.buffptr[dev->write_entry_value.size]), buf, count); /*Storing content to kernel space from user space buffer*/
+	
+	
+	value=count;					/*Return value for Complete write */
 	if(bytes_not_copied)
 	{
-		value -= bytes_not_copied;
+		value -= bytes_not_copied;		/*Return value for partial write*/
 	}
 	dev->write_entry_value.size += (count - bytes_not_copied);
 	
-
+	/*Using strchr, check if new line is present*/
 	if (strchr((char *)(dev->write_entry_value.buffptr), '\n')) 
 	{
 
@@ -137,9 +149,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 		dev->write_entry_value.size = 0;
 	}
 
-  cleanup:
-	mutex_unlock(&dev->mutex1);
   exit:
+  	mutex_unlock(&dev->mutex1);
 	return value;
 
 	

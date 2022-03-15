@@ -294,9 +294,7 @@ void *thread_func(void *thread_param)
 			syslog(LOG_ERR, "ERROR: mutex_lock() fail");
 			}
 			int file_size = lseek(fd, 0, SEEK_CUR);
-			syslog(LOG_DEBUG, "Fd status1 %d", fd);
 			lseek(fd, 0, SEEK_SET);
-			syslog(LOG_DEBUG, "Fd status2 %d", fd);
 			send_buffer = (char *) malloc(file_size * sizeof(char));
 			status = pthread_mutex_lock(thread_data->mutex);
 		        bytes_read = read(fd, send_buffer, file_size );
