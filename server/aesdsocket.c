@@ -32,6 +32,13 @@
 #define PERMISSION  0644
 #define BUFFER_SIZE 100
 
+#define USE_AESD_CHAR_DEVICE 1
+
+#ifdef USE_AESD_CHAR_DEVICE
+#define PATH "/dev/aesdchar"
+#else
+#define PATH "/var/tmp/aesdsocketdata"
+#endif
 
 int socketfd = 0, socketnewfd = 0,fd=0;
 char *receive_buffer = NULL;
@@ -77,7 +84,7 @@ static void signal_handler (int signo)
  	close(socketfd);
  	close(socketnewfd);
  	close(fd);
- 	unlink("/var/tmp/aesdsocketdata");
+ 	unlink(PATH);
  	slist_data_t *add_thread = NULL;
  	SLIST_FOREACH(add_thread, &head, entries)
         {
@@ -136,7 +143,8 @@ void daemon_mode()
  	dup (0); 					/* stdout */
  	dup (0); 					/* stderror */
 }
-
+ 
+ #ifndef USE_AESD_CHAR_DEVICE
 /*
 *@Function: alarm_handler
 *@brief: Consists of handling function when an alarm is triggered
@@ -156,7 +164,7 @@ void alarm_handler (int alarm)
 	currenttime = localtime (&rawtime);
 	strftime(time_string, sizeof(time_string), "timestamp:%T %d %b %a %Y %z\n", currenttime); /*RFC 2822 complaint strftime format*/
 	
-	fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND , 0644);
+	fd = open(PATH, O_RDWR | O_APPEND , 0644);
 	if (fd == -1)
 	{
 		syslog(LOG_ERR,"File cannot be opened in WRITE mode");
@@ -189,7 +197,7 @@ void alarm_handler (int alarm)
 	
 	
 }
-
+#endif
 /*
 *@Function: thread_func
 *@brief: Starting function of the new thread
@@ -258,7 +266,7 @@ void *thread_func(void *thread_param)
 			syslog(LOG_DEBUG,"Appended String is %s",receive_buffer);
 			}
 			syslog(LOG_DEBUG,"Appended String is %s",receive_buffer);
-		        fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND , 0644);
+		        fd = open(PATH, O_RDWR | O_APPEND , 0644);
 			if (fd == -1)
 			{
 				syslog(LOG_ERR,"File cannot be opened in WRITE mode");
@@ -293,14 +301,14 @@ void *thread_func(void *thread_param)
 			if(bytes_read == -1)
 			{
 			
-				syslog(LOG_ERR,"Error in Reading");
-				exit(-1);
+				syslog(LOG_ERR,"Error in Readingk");
+				//exit(-1);
 			}
 			status = send(thread_data->accept_socket_fd, send_buffer, bytes_read, 0);
 			if(status == -1)
 			{
 				syslog(LOG_ERR,"Sending to host failed");
-				exit(-1);
+				//exit(-1);
 			}
 			status = pthread_mutex_unlock(thread_data->mutex);
 			thread_data->thread_complete_success=true;
@@ -322,12 +330,7 @@ void *thread_func(void *thread_param)
 */
 int main(int argc,  char *argv[])
 {
-	struct itimerval delay;
-	signal (SIGALRM, alarm_handler);
-	delay.it_value.tv_sec =10;
-	delay.it_interval.tv_sec=10;
-	delay.it_value.tv_usec =0;
-	delay.it_interval.tv_usec=0;
+	
 	
 	struct addrinfo hints;
 	struct addrinfo *result, *temp_ptr;  	
@@ -391,20 +394,26 @@ int main(int argc,  char *argv[])
         
         }
         
-       	fd = creat("/var/tmp/aesdsocketdata", 0644);
+       	fd = creat(PATH, 0644);
         	if (fd == -1)
         	{
         		syslog(LOG_ERR,"File could not be created");
         		exit(-1);        	
         	}
-      
+      #ifndef USE_AESD_CHAR_DEVICE
+        struct itimerval delay;
+	signal (SIGALRM, alarm_handler);
+	delay.it_value.tv_sec =10;
+	delay.it_interval.tv_sec=10;
+	delay.it_value.tv_usec =0;
+	delay.it_interval.tv_usec=0;
       	status = setitimer (ITIMER_REAL, &delay, NULL);
 	if(status)
 	{
 		syslog(LOG_ERR, "Error setting timer");
 		exit (-1);
 	}
-	
+	#endif
 	status = pthread_mutex_init(&mutex1, NULL);
 	if (status != 0)
 	{
@@ -449,15 +458,4 @@ int main(int argc,  char *argv[])
 	
 
 }
-
-
-
-
-
-
-
-
-
-
-
 
